@@ -10,6 +10,8 @@ app.use(cors());
 
 app.use(express.json());
 
+
+
 const db = mysql.createConnection({
 
     host: 'localhost',
@@ -334,6 +336,87 @@ app.delete('/api/request-jemput/:id', (req, res) => {
     });
 
 });
+
+// =========================================================
+// PASTE KODINGAN BARU (KATALOG & TRANSAKSI) TEPAT DI SINI
+// =========================================================
+
+// 1. Get All Sembako
+app.get('/api/sembako', (req, res) => {
+    const sql = 'SELECT * FROM katalog_sembako ORDER BY id DESC';
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// 2. Tambah Sembako Baru (Create)
+app.post('/api/sembako', (req, res) => {
+    const { nama_sembako, harga_poin, stok } = req.body;
+    const sql = 'INSERT INTO katalog_sembako (nama_sembako, harga_poin, stok) VALUES (?, ?, ?)';
+    db.query(sql, [nama_sembako, harga_poin, stok], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ success: true, message: 'Sembako baru berhasil ditambahkan ke katalog!' });
+    });
+});
+
+// 3. Update Data Sembako (Update)
+app.put('/api/sembako/:id', (req, res) => {
+    const { id } = req.params;
+    const { nama_sembako, harga_poin, stok } = req.body;
+    const sql = 'UPDATE katalog_sembako SET nama_sembako = ?, harga_poin = ?, stok = ? WHERE id = ?';
+    db.query(sql, [nama_sembako, harga_poin, stok, id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, message: 'Data sembako berhasil diperbarui!' });
+    });
+});
+
+// 4. Hapus Sembako (Delete)
+app.delete('/api/sembako/:id', (req, res) => {
+    const { id } = req.params;
+    const sql = 'DELETE FROM katalog_sembako WHERE id = ?';
+    db.query(sql, [id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, message: 'Sembako berhasil dihapus dari katalog!' });
+    });
+});
+
+// 5. Get All Riwayat Penukaran Poin
+app.get('/api/penukaran', (req, res) => {
+    const sql = `
+        SELECT t.id, t.nama_warga, t.jenis_penukaran, k.nama_sembako, t.poin_ditukar, t.tanggal_tukar 
+        FROM transaksi_penukaran t
+        LEFT JOIN katalog_sembako k ON t.id_sembako = k.id
+        ORDER BY t.tanggal_tukar DESC
+    `;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// 6. Catat Transaksi Penukaran Poin Baru (Uang/Sembako)
+app.post('/api/penukaran', (req, res) => {
+    const { nama_warga, jenis_penukaran, id_sembako, poin_ditukar } = req.body;
+    const sql = 'INSERT INTO transaksi_penukaran (nama_warga, jenis_penukaran, id_sembako, poin_ditukar) VALUES (?, ?, ?, ?)';
+    
+    db.query(sql, [nama_warga, jenis_penukaran, id_sembako || null, poin_ditukar], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        if (jenis_penukaran === 'Sembako' && id_sembako) {
+            const updateStokSql = 'UPDATE katalog_sembako SET stok = stok - 1 WHERE id = ?';
+            db.query(updateStokSql, [id_sembako], (updateErr) => {
+                if (updateErr) console.error('Gagal memotong stok sembako:', updateErr.message);
+            });
+        }
+        
+        res.status(201).json({ success: true, message: 'Transaksi penukaran poin berhasil dicatat!' });
+    });
+});
+
+// =========================================================
+// BATAS AKHIR PASTE
+// =========================================================
 
 app.listen(3000, () => {
 
